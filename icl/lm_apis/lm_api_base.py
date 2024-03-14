@@ -8,14 +8,13 @@ from icl.utils.other import dict_to
 
 
 class LMForwardAPI(nn.Module):
-    def __init__(self, model, model_name, tokenizer, label_dict: Dict[int, str], device='cuda:0'):
+    def __init__(self, model, model_name, tokenizer, label_dict: Dict[int, str]):
         super().__init__()
         self._use_past_key_values = False
         self._past_key_values = None
         self.model = model
         self.model_name = model_name
         self.tokenizer = tokenizer
-        self.device = device
         self.model.eval()
         self.calibration_probs = None
         self.use_calibration_probs = False
@@ -25,18 +24,10 @@ class LMForwardAPI(nn.Module):
                           label_dict.items()}
         self.position_offset = 0
 
-        assert model_name in ['gpt2-xl', 'gpt-j-6b']
 
     @property
     def device(self):
         return self.model.device
-
-    @device.setter
-    def device(self, device):
-        print(f'LMForwardAPI: set device to {device}')
-        self.model = self.model.to(device)
-        if self.past_key_values:
-            self.past_key_values = self.past_key_values  # will reset device
 
     def cal_logits(self, inputs, **kwargs):
         self.model.eval()
@@ -85,6 +76,7 @@ class LMForwardAPI(nn.Module):
         return probs, logits, results
 
     def cal_probs_from_results(self, inputs, results):
+        #inside predictor class
         return self.probs_from_results_fn(inputs, results)
 
     @property
@@ -143,11 +135,17 @@ class LMForwardAPI(nn.Module):
         return probs, probs_from_results
 
     def forward(self, **kwargs):
+        # result contains: 'logits', 'past_key_values', 'hidden_states', 'attentions'
+        #ori logit is the logit at prediction locations (for all tokens).
         ori_logits, results = self.cal_logits(kwargs, **self.results_args)
+        # probs is just softmax(ori_logits) for label dict tokens (filter out all other tokens)
+        # logits returned is the raw logits filtered out for label tokens.
         probs, logits = self._cal_probs(ori_logits)
+        
         result = {'probs': probs, 'logits': logits, 'results': results}
         if self.probs_from_results_fn:
             probs_from_results = self.cal_probs_from_results(kwargs, results)
+            # the way 'probs_from_results' structure is [1,96]=stacking the positive (48 values for 48 layers) and negative labels into 96
             result['probs_from_results'] = probs_from_results
         result['ori_logits'] = ori_logits
         return result

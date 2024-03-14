@@ -56,8 +56,8 @@ def compress(args: CompressArgs):
     data_collator = TruncatingDataCollator(
         tokenizer=tokenizer, pad_to_multiple_of=1, max_length=tokenizer.max_len_single_sentence)
     training_args = TrainingArguments("./output_dir", remove_unused_columns=False,
-                                      per_gpu_eval_batch_size=args.batch_size,
-                                      per_gpu_train_batch_size=args.batch_size)
+                                      per_device_eval_batch_size=args.batch_size,
+                                      per_device_train_batch_size=args.batch_size)
 
     num_layer = get_model_layer_num(model=model.model, model_name=args.model_name)
     predictor = Predictor(label_id_dict=args.label_id_dict, pad_token_id=tokenizer.pad_token_id,

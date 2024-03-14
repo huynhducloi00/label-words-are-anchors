@@ -38,8 +38,8 @@ def n_classify(args: NClassificationArgs):
                          label_dict=args.label_dict)
 
     training_args = TrainingArguments("./output_dir", remove_unused_columns=False,
-                                      per_gpu_eval_batch_size=args.batch_size,
-                                      per_gpu_train_batch_size=args.batch_size)
+                                      per_device_eval_batch_size=args.batch_size,
+                                      per_device_train_batch_size=args.batch_size)
 
     num_layer = get_model_layer_num(model=model.model, model_name=args.model_name)
 

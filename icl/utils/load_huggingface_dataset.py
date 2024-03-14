@@ -2,11 +2,11 @@ import os.path
 
 from datasets import load_dataset, load_from_disk
 
-ROOT_FOLEDER = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT_FOLDER = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def load_from_local(task_name, splits):
-    dataset_path = os.path.join(ROOT_FOLEDER, 'datasets', task_name)
+    dataset_path = os.path.join(ROOT_FOLDER, 'datasets', task_name)
     if not os.path.exists(dataset_path):
         raise FileNotFoundError(f"dataset_path: {dataset_path}")
     dataset = load_from_disk(dataset_path)
@@ -16,7 +16,11 @@ def load_from_local(task_name, splits):
 
 def load_huggingface_dataset_train_and_test(task_name):
     dataset = None
-    if task_name == 'sst2':
+    if task_name=='obqa':
+        dataset = load_dataset('openbookqa', 'main', split=['train', 'test'])
+        # /vicuna-13b-v1.5 
+        pass
+    elif task_name == 'sst2':
         try:
             dataset = load_from_local(task_name, ['train', 'validation'])
         except FileNotFoundError:

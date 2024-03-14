@@ -1,0 +1,52 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "do_shallow_layer",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "program": "do_shallow_layer.py", //"attention_attr.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "do_deep_layer",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "program": "do_deep_layer.py", //"attention_attr.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "deep_analysis",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "program": "deep_analysis.py", //"attention_attr.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "reweighting",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "program": "reweighting.py", //"attention_attr.py",
+            "console": "integratedTerminal"
+        }
+    ]
+}
