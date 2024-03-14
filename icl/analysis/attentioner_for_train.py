@@ -64,7 +64,7 @@ def gpt2_attn(self, query, key, value, attention_mask=None, head_mask=None, atte
 
 class AttentionerManagerBase:
     def __init__(self, model: PreTrainedModel, predictor: Predictor, n_demo, device,n_head):
-        self.n_demo = n_demo
+        self.n_class = n_demo
         self.n_head = n_head
         self.device = device
         self.model = model
@@ -135,13 +135,13 @@ def manager_decoractor(manager: AttentionerManagerBase):
 
 
 class GPT2AttentionerManager(AttentionerManagerBase):
-    def __init__(self, model: PreTrainedModel, n_demo, predictor: Predictor, device, n_head=1):
-        super().__init__(model, predictor, n_demo, device,n_head=n_head)
+    def __init__(self, model: PreTrainedModel, n_class, predictor: Predictor, device, n_head=1):
+        super().__init__(model, predictor, n_class, device,n_head=n_head)
 
     def register_attentioner_to_model(self):
         attention_adapters = []
         for i, layer in enumerate(self.model.transformer.h):
-            attention_adapter = AttentionAdapter(n_demo=self.n_demo, device=self.device,
+            attention_adapter = AttentionAdapter(n_class=self.n_class, device=self.device,
                                                  n_head=self.n_head)
             layer.attn._attn = partial(gpt2_attn, layer.attn,
                                        attention_adapter=attention_adapter)
@@ -150,12 +150,12 @@ class GPT2AttentionerManager(AttentionerManagerBase):
 
 
 class AttentionAdapter(AttentionAdapterBase):
-    def __init__(self, n_demo, n_head, device) -> None:
+    def __init__(self, n_class, n_head, device) -> None:
         super().__init__()
-        self.n_demo = n_demo
+        self.n_class = n_class
         self.n_head = n_head
         self.weight = torch.nn.Parameter(
-            torch.zeros((n_head, n_demo), requires_grad=True, device=device))
+            torch.zeros((n_head, n_class), requires_grad=True, device=device))
         self.class_poss = None
         self.final_poss = None
 
@@ -166,7 +166,7 @@ class AttentionAdapter(AttentionAdapterBase):
         bsz, n_head, seq_len, _ = attn_weights.shape
         assert bsz == 1
         mask_mat = torch.ones((1, n_head, seq_len, seq_len), device=attn_weights.device)
-        mask_mat[:, :, final_poss, class_poss] = weight.reshape(1, self.n_head, self.n_demo)
+        mask_mat[:, :, final_poss, class_poss] = weight.reshape(1, self.n_head, self.n_class)
         return attn_weights * mask_mat
 
     @property

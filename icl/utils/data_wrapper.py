@@ -8,6 +8,16 @@ format_s_dict = {
 }
 
 
+def prepare_dataset(seed, dataset, sample_size, args, tokenizer):
+    sample = dataset.shuffle(seed=seed)
+    if sample_size != -1:
+        sample = sample.select(range(sample_size))
+
+    analysis_dataset = wrap_dataset(sample, [], args.label_dict, args.task_name)
+    analysis_dataset = tokenize_dataset(analysis_dataset, tokenizer)
+    return analysis_dataset
+
+
 def obqa_wrap_data(input_sample):
     choices = input_sample["choices"]["text"]
     # for vicinity

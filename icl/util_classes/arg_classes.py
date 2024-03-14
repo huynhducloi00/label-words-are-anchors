@@ -80,9 +80,7 @@ class ReweightingArgs(DeepArgs):
     save_folder: str = os.path.join(FOLDER_ROOT, "results", "reweighting")
     lr: float = 0.1
     train_num_per_class: int = 4
-    epoch_num: int = 10
-    n_head: int = 25  # 25
-    device: str = f"cuda:0"
+    epoch_num: int = 2
     seeds: List[int] = field(default_factory=lambda: [42])
 
     def __post_init__(self):

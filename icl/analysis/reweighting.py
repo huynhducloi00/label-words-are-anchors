@@ -10,7 +10,7 @@ from transformers.hf_argparser import HfArgumentParser
 import torch
 import torch.nn.functional as F
 from ..lm_apis.lm_api_base import LMForwardAPI
-from ..utils.data_wrapper import wrap_dataset, tokenize_dataset
+from ..utils.data_wrapper import prepare_dataset, wrap_dataset, tokenize_dataset
 from ..utils.load_huggingface_dataset import load_huggingface_dataset_train_and_test
 from ..utils.random_utils import set_seed
 from ..utils.other import (
@@ -46,14 +46,13 @@ def train(args: ReweightingArgs):
         raise NotImplementedError(f"sample_from: {args.sample_from}")
 
     model, tokenizer = load_model_and_tokenizer(args)
-    args.label_id_dict = get_label_id_dict_for_args(args, tokenizer)
+    label_id_dict = get_label_id_dict_for_args(args, tokenizer)
 
     model = LMForwardAPI(
         model=model,
         model_name=args.model_name,
         tokenizer=tokenizer,
-        device=args.device,
-        label_dict=args.label_dict,
+        label_id_dict=label_id_dict,
     )
 
     training_args = TrainingArguments(
@@ -100,7 +99,12 @@ def train(args: ReweightingArgs):
 
     ys = []
     for seed in args.seeds:
-        analysis_dataset, train_dataset, demonstration = prepare_analysis_dataset(seed)
+        test_dataset = prepare_dataset(
+            seed, dataset['test'],-1, args, tokenizer
+        )
+        train_dataset = test_dataset = prepare_dataset(
+            seed, dataset['train'],100, args, tokenizer
+        )
 
         training_args = TrainingArguments(
             "./output_dir",
@@ -118,17 +122,15 @@ def train(args: ReweightingArgs):
             tokenizer=tokenizer,
             layer=num_layer,
         )
-        if args.model_name in ["gpt2-xl"]:
-            attentionermanger = GPT2AttentionerManager(
-                model.model,
-                len(demonstration),
-                predictor=predictor,
-                device=model.device,
-                n_head=args.n_head,
-            )
-        else:
-            raise NotImplementedError(f"model_name: {args.model_name}")
-
+        
+        attentionermanger = GPT2AttentionerManager(
+            model.model,
+            len(demonstration),
+            predictor=predictor,
+            device=model.device,
+            n_head=args.n_head,
+        )
+        
         params = attentionermanger.params()
         optimizer = Adam(params, lr=args.lr)
 
