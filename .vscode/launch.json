@@ -20,7 +20,7 @@
             "type": "debugpy",
             "justMyCode": false,
             "env": {
-                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "10"
             },
             "request": "launch",
             "program": "do_deep_layer.py", //"attention_attr.py",

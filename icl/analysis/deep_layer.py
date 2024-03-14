@@ -42,13 +42,12 @@ def deep_layer(args: DeepArgs):
         raise NotImplementedError(f"sample_from: {args.sample_from}")
 
     model, tokenizer = load_model_and_tokenizer(args)
-    args.label_id_dict = get_label_id_dict_for_args(args, tokenizer)
-
+    label_id_dict = get_label_id_dict_for_args(args, tokenizer)
     model = LMForwardAPI(
         model=model,
         model_name=args.model_name,
         tokenizer=tokenizer,
-        label_dict=args.label_dict,
+        label_id_dict=label_id_dict,
     )
 
     training_args = TrainingArguments(
@@ -60,7 +59,7 @@ def deep_layer(args: DeepArgs):
 
     num_layer = get_model_layer_num(model=model.model, model_name=args.model_name)
     predictor = Predictor(
-        label_id_dict=args.label_id_dict,
+        label_id_dict=label_id_dict,
         pad_token_id=tokenizer.pad_token_id,
         task_name=args.task_name,
         tokenizer=tokenizer,

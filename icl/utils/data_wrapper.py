@@ -10,9 +10,11 @@ format_s_dict = {
 
 def obqa_wrap_data(input_sample):
     choices = input_sample["choices"]["text"]
+    # for vicinity
     inputs = f"Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\nAnswer:"
-    #27.6 inputs = f"Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\nSelect either A, B, C, or D:"
-    #27.6 inputs = f"Question: 1+1=\n A. 0 B. 1 C. 2 D. 3. Answer: C. Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\n Answer:"
+    # inputs = f"Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\nAnswer:"
+    # 27.6 inputs = f"Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\nSelect either A, B, C, or D:"
+    # 27.6 inputs = f"Question: 1+1=\n A. 0 B. 1 C. 2 D. 3. Answer: C. Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\n Answer:"
     return inputs
 
 
@@ -91,25 +93,26 @@ def instruct_wrapper(instruct: str, input_sample, label_dict, task_name):
     return inputs
 
 
+def wrap(example, demonstration, label_dict, task_name):
+    example["sentence"] = wrap_data(
+        demonstrations=demonstration,
+        input_sample=example,
+        label_dict=label_dict,
+        task_name=task_name,
+    )
+    example["labels"] = example["label"]
+    return example
+
+
 def wrap_dataset(
     dataset: datasets.arrow_dataset.Dataset, demonstration, label_dict, task_name
 ):
-    def wrap(example):
-        example["sentence"] = wrap_data(
-            demonstrations=demonstration,
-            input_sample=example,
-            label_dict=label_dict,
-            task_name=task_name,
-        )
-        example["labels"] = example["label"]
-        return example
-
     if task_name == "obqa":
         dataset = dataset.add_column(
             "label",
             [["A", "B", "C", "D"].index(x) for x in dataset["answerKey"]],
         )
-    dataset = dataset.map(wrap)
+    dataset = dataset.map(lambda x: wrap(x, demonstration, label_dict, task_name))
     if task_name == "obqa":
         dataset = dataset.remove_columns("choices")
     return dataset

@@ -9,14 +9,16 @@ import matplotlib.pyplot as plt
 from tqdm.notebook import tqdm
 
 demonstration_shot = 0
-model_name = "gpt2-xl"
+model_name = "lmsys/vicuna-13b-v1.5"
 task_names = ["obqa"]  # ,'TREC','AGNews','EmoC']
 
 
 def get_auc_roc_score(
     task_name, seeds=[42], sample_size=1000, model_name="gpt2-xl", demonstration_shot=1
 ):
-    if model_name == "gpt2-xl":
+    if model_name=='lmsys/vicuna-13b-v1.5':
+        num_layer= 40
+    elif model_name == "gpt2-xl":
         num_layer = 48
     elif model_name == "gpt-j-6b":
         num_layer = 28
@@ -46,7 +48,7 @@ def get_auc_roc_score(
     for seed in range(len(seeds)):
         y = raw_result[0][seed]
         scores = []
-        gold = y.predictions[0].argmax(-1)
+        gold = y.predictions[0].argmax(-1) #using big number token
         num_class = y.predictions[0].shape[-1]
         select_list = []
         for i in range(num_class):
@@ -59,7 +61,7 @@ def get_auc_roc_score(
                 pred = y.predictions[2].reshape(-1, num_layer, num_class)[:, layer, :]
             else:
                 pred = y.predictions[2].reshape(-1, num_class, num_layer)[:, :, layer]
-            pred1 = pred[:, select_list]
+            pred1 = pred[:, select_list].astype(np.float32)
             if len(select_list) == 2:
                 pred = pred1[:, 1]
             else:
@@ -86,9 +88,9 @@ scores_list = [
     )
     for task in ["obqa"]
 ]  # ,'trec','agnews','emo']]
-
+PARENT='graphing'
 pickle.dump(
-    scores_list, open(f"auc_roc_scores_{model_name}_{demonstration_shot}.pkl", "wb")
+    scores_list, open(f"{PARENT}/auc_roc_scores_{model_name}_{demonstration_shot}.pkl", "wb")
 )
 
 
@@ -115,45 +117,45 @@ ax2.legend([r"$R_l$"], loc="upper right")
 
 plt.show()
 fig.savefig(
-    f"AUC_ROC_{model_name}_{demonstration_shot}.pdf", dpi=300, bbox_inches="tight"
+    f"{PARENT}/AUC_ROC_{model_name}_{demonstration_shot}.pdf", dpi=300, bbox_inches="tight"
 )
 
 
-fig, ax = plt.subplots()
-x = range(len(scores_list[0]))
-for task_name, scores in zip(task_names, scores_list):
-    ax.plot(x, scores, label=task_name)
+# fig, ax = plt.subplots()
+# x = range(len(scores_list[0]))
+# for task_name, scores in zip(task_names, scores_list):
+#     ax.plot(x, scores, label=task_name)
 
-ax.legend()
+# ax.legend()
 
-ax.set_title(f"AUC-ROC Score of {model_name} on Different Tasks")
-ax.set_xlabel("Layer")
-ax.set_ylabel("Score")
+# ax.set_title(f"AUC-ROC Score of {model_name} on Different Tasks")
+# ax.set_xlabel("Layer")
+# ax.set_ylabel("Score")
 
-plt.show()
+# plt.show()
 
-fig.savefig(
-    f"AUC-ROC Score of {model_name} on Different Tasks (demonstration={demonstration_shot}).png",
-    dpi=300,
-    bbox_inches="tight",
-)
+# fig.savefig(
+#     f"AUC-ROC_Score_{model_name.replace('/','_')}_{demonstration_shot}.png",
+#     dpi=300,
+#     bbox_inches="tight",
+# )
 
 
-fig, ax = plt.subplots()
-x = range(len(scores_list[0]))
-for task_name, scores in zip(task_names, scores_list):
-    n_scores = np.cumsum(scores - 0.5)
-    n_scores = n_scores / n_scores[-1]
-    ax.plot(x, n_scores, label=task_name)
+# fig, ax = plt.subplots()
+# x = range(len(scores_list[0]))
+# for task_name, scores in zip(task_names, scores_list):
+#     n_scores = np.cumsum(scores - 0.5)
+#     n_scores = n_scores / n_scores[-1]
+#     ax.plot(x, n_scores, label=task_name)
 
-ax.legend()
+# ax.legend()
 
-ax.set_title(f"Prediction Ratio of {model_name} on Different Tasks")
-ax.set_xlabel("Layer")
-ax.set_ylabel("Ratio")
+# ax.set_title(f"Prediction Ratio of {model_name} on Different Tasks")
+# ax.set_xlabel("Layer")
+# ax.set_ylabel("Ratio")
 
-plt.show()
+# plt.show()
 
-fig.savefig(
-    f"Prediction Ratio of {model_name} on Different Tasks {demonstration_shot}.png"
-)
+# fig.savefig(
+#     f"Prediction_Ratio_of_{model_name.replace('/','_')}_{demonstration_shot}.png"
+# )

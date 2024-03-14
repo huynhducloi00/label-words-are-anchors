@@ -18,7 +18,7 @@ def set_default_to_empty_string(v, default_v, activate_flag):
 @dataclass
 class DeepArgs:
     task_name: str = "obqa"
-    model_name: str =  "gpt2-xl"#"lmsys/vicuna-13b-v1.5"
+    model_name: str =  "lmsys/vicuna-13b-v1.5" #"gpt2-xl"#
     seeds: List[int] = field(default_factory=lambda: [42])
     sample_size: int = 1000
     demonstration_shot: int = 0
@@ -50,7 +50,7 @@ class DeepArgs:
         self.gpu = int(self.device.split(":")[-1])
         self.actual_sample_size = self.sample_size
         if self.task_name == "obqa":
-            label_dict = {0: " A", 1: " B", 2: " C", 3: " D"}
+            label_dict = {0: "A", 1: "B", 2: "C", 3: "D"}
         elif self.task_name == "sst2":
             label_dict = {0: " Negative", 1: " Positive"}
         elif self.task_name == "agnews":

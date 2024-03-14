@@ -14,21 +14,15 @@ from ..utils.data_wrapper import wrap_dataset, tokenize_dataset
 from ..utils.load_huggingface_dataset import load_huggingface_dataset_train_and_test
 from ..utils.random_utils import set_seed
 from ..utils.other import (
-    load_args,
     set_gpu,
     sample_two_set_with_shot_per_class,
     dict_to,
 )
 from transformers import (
     Trainer,
-    TrainingArguments,
-    PreTrainedModel,
-    AutoModelForCausalLM,
-    AutoTokenizer,
+    TrainingArguments
 )
 from ..utils.load_local import (
-    convert_path_old,
-    load_local_model_or_tokenizer,
     get_model_layer_num,
 )
 from ..util_classes.arg_classes import ReweightingArgs

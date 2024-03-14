@@ -52,22 +52,32 @@ class Predictor:
         device = inputs["input_ids"].device
         bsz, sql = inputs["input_ids"].shape
         class_poss = []
-        for idx in label_id_dict.values():
-            class_idx = idx
-            input_ids = inputs["input_ids"].detach().clone()
-            if self.task_name != "obqa":
+        for class_idx in label_id_dict.values():
+            input_ids = inputs["input_ids"].detach().clone()[0]
+            case0 = input_ids == class_idx[0]
+            case1 = input_ids == class_idx[1]
+            final_case = 0 if case0.sum() > 0 else 1
+            if self.task_name == "obqa":
+                found = [
+                    k1
+                    for k1, k2 in enumerate(input_ids[:-1])
+                    if k2 == class_idx[final_case] and input_ids[k1 + 1] == 29889
+                ]
+                class_pos = torch.tensor(found[0])
+            else:
                 for offset, prefix_idx in enumerate(reversed(self.prefix_idxs)):
                     class_idx += prefix_idx * 100000 ** (offset + 1)
-                input_ids[:, 1:] += inputs["input_ids"][:, :-1] * 100000
-                input_ids[:, 2:] += inputs["input_ids"][:, :-2] * 100000 * 100000
-            class_pos = (
-                torch.arange(sql, device=device)
-                .unsqueeze(0)
-                .repeat(bsz, 1)[input_ids == class_idx]
-                .squeeze()
-            )
+                input_ids[1:] += inputs["input_ids"][:, :-1] * 100000
+                input_ids[2:] += inputs["input_ids"][:, :-2] * 100000 * 100000
+
+                class_pos = (
+                    torch.arange(sql, device=device)
+                    .unsqueeze(0)
+                    .repeat(bsz, 1)[input_ids == class_idx[final_case]]
+                    .squeeze()
+                )
             # this guarantees that the class_pos is from Positive--> Negative but not the other way around.
-            class_poss.append(class_pos[0])
+            class_poss.append(class_pos)
         return class_poss, final_pos
 
     def _cal_all_key_and_values_of_class(
