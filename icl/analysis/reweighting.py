@@ -61,7 +61,7 @@ def train(args: ReweightingArgs):
 
     ys = []
     for seed in args.seeds:
-        test_dataset = prepare_dataset(seed, dataset["test"], -1, args, tokenizer)
+        test_dataset = prepare_dataset(seed, dataset["test"], 20, args, tokenizer)
         train_dataset = prepare_dataset(seed, dataset["train"], 100, args, tokenizer)
 
         training_args = TrainingArguments(
@@ -80,28 +80,39 @@ def train(args: ReweightingArgs):
             tokenizer=tokenizer,
             layer=num_layer,
         )
-        if "gpt" in args.model_name:
-            attentionermanger = GPT2AttentionerManager(
-                model.model,
-                4,  # 4 class
-                predictor=predictor,
-                device=model.device,
-                n_head=model_original.transformer.h[0].attn.num_heads,
-            )
-        else:
-            attentionermanger = LlamaAttentionerManager(
-                model.model,
-                4,  # 4 class
-                predictor=predictor,
-                device=model.device,
-                n_head=model_original.model.layers[0].self_attn.num_heads,
-            )
-
-        params = attentionermanger.params()
-        optimizer = Adam(params, lr=args.lr)
+        # if "gpt" in args.model_name:
+        #     attentionermanger = GPT2AttentionerManager(
+        #         model.model,
+        #         4,  # 4 class
+        #         predictor=predictor,
+        #         device=model.device,
+        #         n_head=model_original.transformer.h[0].attn.num_heads,
+        #     )
+        # else:
+        #     attentionermanger = LlamaAttentionerManager(
+        #         model.model,
+        #         4,  # 4 class
+        #         predictor=predictor,
+        #         device=model.device,
+        #         n_head=model_original.model.layers[0].self_attn.num_heads,
+        #     )
+        # params = attentionermanger.params() 
+        # optimizer = Adam(params, lr=1e-3)  # args.lr)
 
         set_seed(seed)
         loss_list = []
+        average_loss = 0
+
+        def print_perf(dataset, y):
+            print(
+                f"Accuracy: {(dataset['label'] == y[0][0].argmax(axis=1)).sum()/ len(dataset['label'])}"
+            )
+
+        y = trainer.predict(test_dataset, ignore_keys=["results"])
+        print_perf(test_dataset, y)
+        quit()
+        for _ in attentionermanger.attention_adapters:
+            _.use_flag = False
         for _ in tqdm(range(args.epoch_num)):
             loss_item = 0.0
             train_dataset = train_dataset.shuffle()
@@ -118,14 +129,13 @@ def train(args: ReweightingArgs):
                 optimizer.step()
                 optimizer.zero_grad()
                 loss_item += loss.item()
-                loss_list.append(loss_item / idx)
+                loss_list.append(loss_item)
                 average_loss = average_loss * 0.9 + loss.item() * 0.1
                 pbar.set_postfix_str(f"Loss: {average_loss:.2f}")
 
         y = trainer.predict(test_dataset, ignore_keys=["results"])
+        print_perf(test_dataset, y)
 
-        # for _ in attentionermanger.attention_adapters:
-        #     _.use_flag = False
         # y2 = trainer.predict(test_dataset, ignore_keys=["results"])
 
         # ys.append((y, loss_list, params, y2, average_loss))

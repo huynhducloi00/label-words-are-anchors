@@ -16,7 +16,10 @@ def load_model_and_tokenizer(args: DeepArgs):
         model = AutoModelForCausalLM.from_pretrained(
             args.model_name,
             device_map="auto",
-            quantization_config=BitsAndBytesConfig(load_in_8bit_fp32_cpu_offload=True),
+            quantization_config=BitsAndBytesConfig(
+                load_in_8bit_fp32_cpu_offload=True, 
+                bnb_4bit_compute_dtype=torch.float16
+            ),
             # torch_dtype=torch.float16,
             # quantization_config=GPTQConfig(bits=4, dataset="c4", tokenizer=tokenizer),
         )
@@ -27,9 +30,9 @@ def load_model_and_tokenizer(args: DeepArgs):
 def get_label_id_dict_for_args(args: DeepArgs, tokenizer):
     label_id_dict = {
         k: [
-            tokenizer.convert_tokens_to_ids(v), #'char'
-            tokenizer.encode(v, add_special_tokens=False)[-1], #'_char'
-            tokenizer.encode(f' {v}', add_special_tokens=False)[-1], #' char'
+            tokenizer.convert_tokens_to_ids(v),  #'char'
+            tokenizer.encode(v, add_special_tokens=False)[-1],  #'_char'
+            tokenizer.encode(f" {v}", add_special_tokens=False)[-1],  #' char'
         ]
         for k, v in args.label_dict.items()
     }

@@ -46,7 +46,7 @@
                 "TF_ENABLE_ONEDNN_OPTS":"0",
             },
             "request": "launch",
-            "program": "reweighting.py", //"attention_attr.py",
+            "program": "reweighting_entry.py", //"attention_attr.py",
             "console": "integratedTerminal"
         }
     ]

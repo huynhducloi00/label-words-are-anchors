@@ -68,11 +68,9 @@ class LMForwardAPI(nn.Module):
         interest_indices = np.array(list(self.label_id_dict.values()))
         token_selected=logits.argmax().item()
         category=None
-        if token_selected in interest_indices[:,0]:
-            print('using category 0, not normal')
-            category=0
-        elif token_selected in interest_indices[:,1]:
-            category=1
+        found=[i for i in range(interest_indices.shape[-1]) if token_selected in interest_indices[:,i]]
+        if len(found)>0:
+            category=found[0]
         else:
             print('Not in any category')
             category=0
