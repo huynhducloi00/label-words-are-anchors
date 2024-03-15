@@ -58,7 +58,6 @@ class Predictor:
                     for k1, k2 in enumerate(input_array[:-1])
                     if k2 == prefix[0] and input_ids[k1 + 1] == prefix[1]
                 ]
-        29889
         input_ids = inputs["input_ids"].detach().clone()[0]
         label_matrix=np.array(list(label_id_dict.values()))
         final_case=None

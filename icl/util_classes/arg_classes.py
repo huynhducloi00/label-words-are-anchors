@@ -14,7 +14,6 @@ def set_default_to_empty_string(v, default_v, activate_flag):
     else:
         return f"_{v}"
 
-
 @dataclass
 class DeepArgs:
     task_name: str = "obqa"
@@ -73,7 +72,6 @@ class DeepArgs:
     def load_result(self):
         with open(self.save_file_name, "rb") as f:
             return pickle.load(f)
-
 
 @dataclass
 class ReweightingArgs(DeepArgs):

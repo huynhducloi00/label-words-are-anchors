@@ -104,7 +104,7 @@ def gpt2_attn(
 
     return attn_output, attn_weights
 
-
+# Basic grad for all
 class AttentionerManagerBase:
     def __init__(
         self, model: PreTrainedModel, predictor: Predictor, n_class, device, n_head
@@ -166,6 +166,29 @@ class AttentionerManagerBase:
         return params
 
 
+class WeightObservingAttentionAdapter(AttentionAdapterBase):
+    def __init__(self,*args,**kwargs) -> None:
+        super().__init__()
+        self.params = None
+
+    def _forward(self, attn_weights):
+        if self.params is None:
+            self.params = torch.ones_like(attn_weights, requires_grad=True)
+        else:
+            self.params.data = torch.ones_like(attn_weights)
+        return attn_weights * self.params
+
+    @property
+    def grad(self):
+        return self.params.grad
+
+    def zero_grad(self, set_to_none: bool = False) -> None:
+        if self.params.grad is not None:
+            if set_to_none:
+                self.params.grad = None
+            else:
+                self.params.grad = torch.zeros_like(self.params.grad)
+
 def manager_decoractor(manager: AttentionerManagerBase):
     def model_forward_decorator(fn):
         @wraps(fn)
@@ -183,14 +206,15 @@ def manager_decoractor(manager: AttentionerManagerBase):
 
 class LlamaAttentionerManager(AttentionerManagerBase):
     def __init__(
-        self, model: PreTrainedModel, n_class, predictor: Predictor, device, n_head=1
+        self, model: PreTrainedModel, n_class, predictor: Predictor, device, kind_of_attention_adapter_initilizer,n_head=1
     ):
+        self.kind_of_attention_adapter_initilizer=kind_of_attention_adapter_initilizer
         super().__init__(model, predictor, n_class, device, n_head=n_head)
 
     def register_attentioner_to_model(self):
         attention_adapters = []
         for _, layer in enumerate(self.model.model.layers):
-            attention_adapter = AttentionAdapter(
+            attention_adapter = self.kind_of_attention_adapter_initilizer(
                 n_class=self.n_class,
                 device=self.device,
                 n_head=self.n_head,
@@ -205,14 +229,16 @@ class LlamaAttentionerManager(AttentionerManagerBase):
 
 class GPT2AttentionerManager(AttentionerManagerBase):
     def __init__(
-        self, model: PreTrainedModel, n_class, predictor: Predictor, device, n_head=1
+        self, model: PreTrainedModel, n_class, predictor: Predictor, device, 
+        kind_of_attention_adapter_initilizer, n_head=1,
     ):
+        self.kind_of_attention_adapter_initilizer=kind_of_attention_adapter_initilizer
         super().__init__(model, predictor, n_class, device, n_head=n_head)
 
     def register_attentioner_to_model(self):
         attention_adapters = []
         for _, layer in enumerate(self.model.transformer.h):
-            attention_adapter = AttentionAdapter(
+            attention_adapter = self.kind_of_attention_adapter_initilizer(
                 n_class=self.n_class, device=self.device, n_head=self.n_head
             )
             layer.attn._attn = partial(
@@ -222,7 +248,7 @@ class GPT2AttentionerManager(AttentionerManagerBase):
         return attention_adapters
 
 
-class AttentionAdapter(AttentionAdapterBase):
+class ReweightingAttentionAdapter(AttentionAdapterBase):
     def __init__(self, n_class, n_head, device, dtype) -> None:
         super().__init__()
         self.n_class = n_class

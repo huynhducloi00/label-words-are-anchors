@@ -1,205 +1,165 @@
-import os
-
-# import sys
-# print("In module products sys.path[0], __package__ ==", sys.path[0], __package__)
-# quit()
-LOI_DEVICE = 0
-os.environ["CUDA_VISIBLE_DEVICES"] = f"{LOI_DEVICE}"
-# os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 import pickle
 import warnings
 from dataclasses import dataclass, field
 from typing import List
 import os
-import numpy as np
-from tqdm import tqdm, trange
+
+from torch.optim import Adam
+from tqdm import tqdm
 from transformers.hf_argparser import HfArgumentParser
 import torch
 import torch.nn.functional as F
-
-from icl.lm_apis.lm_api_base import LMForwardAPI
-from icl.utils.data_wrapper import wrap_dataset, tokenize_dataset
-from icl.utils.load_huggingface_dataset import load_huggingface_dataset_train_and_test
-from icl.utils.prepare_model_and_tokenizer import (
+from ..lm_apis.lm_api_base import LMForwardAPI
+from ..utils.data_wrapper import prepare_dataset, wrap_dataset, tokenize_dataset
+from ..utils.load_huggingface_dataset import load_huggingface_dataset_train_and_test
+from ..utils.random_utils import set_seed
+from ..utils.other import (
+    set_gpu,
+    sample_two_set_with_shot_per_class,
+    dict_to,
+)
+from transformers import Trainer, TrainingArguments
+from ..utils.load_local import (
+    get_model_layer_num,
+)
+from ..util_classes.arg_classes import ReweightingArgs
+from ..utils.prepare_model_and_tokenizer import (
     load_model_and_tokenizer,
     get_label_id_dict_for_args,
 )
-from icl.utils.random_utils import set_seed
-from icl.utils.other import load_args, set_gpu, sample_two_set_with_shot_per_class
-from transformers import (
-    Trainer,
-    TrainingArguments,
-    PreTrainedModel,
-    AutoModelForCausalLM,
-    AutoTokenizer,
-)
-from icl.utils.load_local import (
-    convert_path_old,
-    load_local_model_or_tokenizer,
-    get_model_layer_num,
-)
-from icl.util_classes.arg_classes import AttrArgs
-from icl.util_classes.predictor_classes import Predictor
-from transformers import HfArgumentParser
-from datasets import concatenate_datasets
-from datasets.utils.logging import disable_progress_bar
-import icl.analysis.attentioner_for_attribution
-from icl.analysis.attentioner_for_attribution import (
-    AttentionAdapter,
+from ..util_classes.predictor_classes import Predictor
+from .attentioner_for_train import (
     GPT2AttentionerManager,
+    LlamaAttentionerManager,
+    ReweightingAttentionAdapter,
+    WeightObservingAttentionAdapter,
 )
-from icl.utils.other import dict_to
+from datasets import concatenate_datasets
+from copy import deepcopy
 
 
-def prepare_analysis_dataset(seed):
+def train(args: ReweightingArgs):
+    # if os.path.exists(args.save_file_name):
+    #     return
+    set_gpu(args.gpu)
     if args.sample_from == "test":
-        if len(dataset["test"]) < args.actual_sample_size:
-            args.actual_sample_size = len(dataset["test"])
-            warnings.warn(
-                f"sample_size: {args.sample_size} is larger than test set size: {len(dataset['test'])},"
-                f"actual_sample_size is {args.actual_sample_size}"
-            )
-        test_sample = (
-            dataset["test"].shuffle(seed=seed).select(range(args.actual_sample_size))
-        )
+        dataset = load_huggingface_dataset_train_and_test(args.task_name)
     else:
         raise NotImplementedError(f"sample_from: {args.sample_from}")
-    disable_progress_bar()
-    demonstration = dataset["train"]
-    class_num = len(set(demonstration["label"]))
-    np_labels = np.array(demonstration["label"])
-    ids_for_demonstrations = [
-        np.where(np_labels == class_id)[0] for class_id in range(class_num)
-    ]
-    demonstrations_contexted = []
-    np.random.seed(seed)
-    for i in trange(len(test_sample)):
-        demonstration_part_ids = []
-        for _ in ids_for_demonstrations:
-            demonstration_part_ids.extend(np.random.choice(_, args.demonstration_shot))
-        demonstration_part = demonstration.select(demonstration_part_ids)
-        demonstration_part = demonstration_part.shuffle(seed=seed)
-        demonstration_part = wrap_dataset(
-            test_sample.select([i]), demonstration_part, args.label_dict, args.task_name
+
+    model_original, tokenizer = load_model_and_tokenizer(args)
+    label_id_dict = get_label_id_dict_for_args(args, tokenizer)
+
+    model = LMForwardAPI(
+        model=model_original,
+        model_name=args.model_name,
+        tokenizer=tokenizer,
+        label_id_dict=label_id_dict,
+    )
+
+    training_args = TrainingArguments(
+        "./output_dir",
+        remove_unused_columns=False,
+        per_device_eval_batch_size=args.batch_size,
+        per_device_train_batch_size=args.batch_size,
+    )
+
+    ys = []
+    for seed in args.seeds:
+        test_dataset = prepare_dataset(seed, dataset["test"], 20, args, tokenizer)
+        train_dataset = prepare_dataset(seed, dataset["train"], 100, args, tokenizer)
+
+        training_args = TrainingArguments(
+            "./output_dir",
+            remove_unused_columns=False,
+            per_device_eval_batch_size=1,
+            per_device_train_batch_size=1,
         )
-        demonstrations_contexted.append(demonstration_part)
-    demonstrations_contexted = concatenate_datasets(demonstrations_contexted)
-    demonstrations_contexted = demonstrations_contexted.filter(
-        lambda x: len(tokenizer(x["sentence"])["input_ids"])
-        <= tokenizer.max_len_single_sentence
-    )
-    demonstrations_contexted = tokenize_dataset(
-        demonstrations_contexted, tokenizer=tokenizer
-    )
-    return demonstrations_contexted
+        trainer = Trainer(model=model, args=training_args)
 
+        num_layer = get_model_layer_num(model=model.model, model_name=args.model_name)
+        predictor = Predictor(
+            label_id_dict=label_id_dict,
+            pad_token_id=tokenizer.pad_token_id,
+            task_name=args.task_name,
+            tokenizer=tokenizer,
+            layer=num_layer,
+        )
+        for p in model.parameters():
+            p.requires_grad = False
 
-def get_proportion(saliency, class_poss, final_poss):
-    saliency = saliency.detach().clone().cpu()
-    class_poss = torch.hstack(class_poss).detach().clone().cpu()
-    final_poss = final_poss.detach().clone().cpu()
-    assert len(saliency.shape) == 2 or (
-        len(saliency.shape) == 3 and saliency.shape[0] == 1
-    )
-    if len(saliency.shape) == 3:
-        saliency = saliency.squeeze(0)
-    saliency = saliency.numpy()
-    np.fill_diagonal(saliency, 0)
-    # saliency is a lower triangle matrix, hence, i<j, then saliency[j,i] has value but not saliency[i,j], can't flow into the future.
-    # From text to labels words
-    proportion1 = saliency[class_poss, :].sum()
-    proportion2 = saliency[final_poss, class_poss].sum()
-    proportion3 = saliency.sum() - proportion1 - proportion2
+        observing = True
+        if observing:
+            initialize_adapter = WeightObservingAttentionAdapter
+        else:
+            initialize_adapter = ReweightingAttentionAdapter
+        if "gpt" in args.model_name:
+            attentionermanger = GPT2AttentionerManager(
+                model.model,
+                4,  # 4 class
+                predictor=predictor,
+                device=model.device,
+                kind_of_attention_adapter_initilizer=initialize_adapter,
+                n_head=model_original.transformer.h[0].attn.num_heads,
+            )
+        else:
+            attentionermanger = LlamaAttentionerManager(
+                model.model,
+                4,  # 4 class
+                predictor=predictor,
+                device=model.device,
+                kind_of_attention_adapter_initilizer=initialize_adapter,
+                n_head=model_original.model.layers[0].self_attn.num_heads,
+            )
+        # params = attentionermanger.params()
+        # optimizer = Adam(params, lr=1e-3)  # args.lr)
 
-    N = int(final_poss)
-    sum3 = (N + 1) * N / 2 - sum(class_poss) - len(class_poss)
-    # the use of 'sum' is very correct, according to the paper. For example, [25,36] => 25+36. Count all i<25, and all i<36.
-    proportion1 = proportion1 / sum(class_poss)
-    proportion2 = proportion2 / len(class_poss)
-    proportion3 = proportion3 / sum3
-    proportions = np.array([proportion1, proportion2, proportion3])
-    return proportions
+        set_seed(seed)
+        loss_list = []
+        average_loss = 0
 
+        def print_perf(dataset, y):
+            print(
+                f"Accuracy: {(dataset['label'] == y[0][0].argmax(axis=1)).sum()/ len(dataset['label'])}"
+            )
 
-hf_parser = HfArgumentParser((AttrArgs,))
-args: AttrArgs = hf_parser.parse_args_into_dataclasses()[0]
+        # y = trainer.predict(test_dataset, ignore_keys=["results"])
+        # print_perf(test_dataset, y)
+        # quit()
+        # for _ in attentionermanger.attention_adapters:
+        #     _.use_flag = False
+        for _ in tqdm(range(args.epoch_num)):
+            loss_item = 0.0
+            train_dataset = train_dataset.shuffle()
+            train_dataloader = trainer.get_eval_dataloader(train_dataset)
+            pbar = tqdm(
+                enumerate(train_dataloader), total=len(train_dataset), leave=False
+            )
+            for idx, data in pbar:
+                data = dict_to(data, model.device)
+                output = model(**data)
+                label = data["labels"]
+                loss = F.cross_entropy(output["logits"], label)
+                loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                loss_item += loss.item()
+                loss_list.append(loss_item)
+                average_loss = average_loss * 0.9 + loss.item() * 0.1
+                pbar.set_postfix_str(f"Loss: {average_loss:.2f}")
 
-set_gpu(args.gpu)
-if args.sample_from == "test":
-    dataset = load_huggingface_dataset_train_and_test(args.task_name)
-else:
-    raise NotImplementedError(f"sample_from: {args.sample_from}")
+        y = trainer.predict(test_dataset, ignore_keys=["results"])
+        print_perf(test_dataset, y)
 
-model, tokenizer = load_model_and_tokenizer(args)
-args.label_id_dict = get_label_id_dict_for_args(args, tokenizer)
+        # y2 = trainer.predict(test_dataset, ignore_keys=["results"])
 
-model = model.half()
+        # ys.append((y, loss_list, params, y2, average_loss))
 
-model = LMForwardAPI(
-    model=model,
-    model_name=args.model_name,
-    tokenizer=tokenizer,
-    device=f"cuda:{LOI_DEVICE}",
-    label_dict=args.label_dict,
-)
-
-
-num_layer = get_model_layer_num(model=model.model, model_name=args.model_name)
-predictor = Predictor(
-    label_id_dict=args.label_id_dict,
-    pad_token_id=tokenizer.pad_token_id,
-    task_name=args.task_name,
-    tokenizer=tokenizer,
-    layer=num_layer,
-)
-
-
-demonstrations_contexted = pickle.load(open("demonstrations_contexted.pkl", "rb"))
-# prepare_analysis_dataset(args.seeds[0])
-# pickle.dump(demonstrations_contexted, open("demonstrations_contexted.pkl","wb"))
-if args.model_name in ["gpt2-xl"]:
-    attentionermanger = GPT2AttentionerManager(model.model)
-else:
-    raise NotImplementedError(f"model_name: {args.model_name}")
-
-training_args = TrainingArguments(
-    "./output_dir",
-    remove_unused_columns=False,
-    per_device_eval_batch_size=1,
-    per_device_train_batch_size=1,
-)
-trainer = Trainer(model=model, args=training_args)
-analysis_dataloader = trainer.get_eval_dataloader(demonstrations_contexted)
-
-
-for p in model.parameters():
-    p.requires_grad = False
-
-pros_list = []
-
-for idx, data in tqdm(enumerate(analysis_dataloader), total=len(analysis_dataloader)):
-    data = dict_to(data, model.device)
-    # print(data["input_ids"].shape)
-    attentionermanger.zero_grad()
-    output = model(**data)
-    label = data["labels"]
-    loss = F.cross_entropy(output["logits"], label)
-    loss.backward()
-    class_poss, final_poss = predictor.get_pos(
-        {"input_ids": attentionermanger.input_ids}
-    )
-    pros = []
-    for i in range(len(attentionermanger.attention_adapters)):
-        saliency = attentionermanger.grad(use_abs=True)[i]
-        for j in range(len(data["labels"])):
-            pro = get_proportion(saliency, class_poss, final_poss)
-            pros.append(pro)
-    pros = np.array(pros)
-    pros = pros.T
-    pros_list.append(pros)
-
-pros_list = np.array(pros_list)
-
-os.makedirs(os.path.dirname(args.save_file_name), exist_ok=True)
-with open(args.save_file_name, "wb") as f:
-    pickle.dump(pros_list, f)
+    os.makedirs(os.path.dirname(args.save_file_name), exist_ok=True)
+    with open(args.save_file_name, "wb") as f:
+        pickle.dump(
+            [
+                ys,
+            ],
+            f,
+        )

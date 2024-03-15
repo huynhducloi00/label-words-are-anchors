@@ -28,7 +28,12 @@ from ..utils.prepare_model_and_tokenizer import (
     get_label_id_dict_for_args,
 )
 from ..util_classes.predictor_classes import Predictor
-from .attentioner_for_train import GPT2AttentionerManager, LlamaAttentionerManager
+from .attentioner_for_train import (
+    GPT2AttentionerManager,
+    LlamaAttentionerManager,
+    ReweightingAttentionAdapter,
+    WeightObservingAttentionAdapter,
+)
 from datasets import concatenate_datasets
 from copy import deepcopy
 
@@ -80,23 +85,33 @@ def train(args: ReweightingArgs):
             tokenizer=tokenizer,
             layer=num_layer,
         )
-        # if "gpt" in args.model_name:
-        #     attentionermanger = GPT2AttentionerManager(
-        #         model.model,
-        #         4,  # 4 class
-        #         predictor=predictor,
-        #         device=model.device,
-        #         n_head=model_original.transformer.h[0].attn.num_heads,
-        #     )
-        # else:
-        #     attentionermanger = LlamaAttentionerManager(
-        #         model.model,
-        #         4,  # 4 class
-        #         predictor=predictor,
-        #         device=model.device,
-        #         n_head=model_original.model.layers[0].self_attn.num_heads,
-        #     )
-        # params = attentionermanger.params() 
+        for p in model.parameters():
+            p.requires_grad = False
+
+        observing = True
+        if observing:
+            initialize_adapter = WeightObservingAttentionAdapter
+        else:
+            initialize_adapter = ReweightingAttentionAdapter
+        if "gpt" in args.model_name:
+            attentionermanger = GPT2AttentionerManager(
+                model.model,
+                4,  # 4 class
+                predictor=predictor,
+                device=model.device,
+                kind_of_attention_adapter_initilizer=initialize_adapter,
+                n_head=model_original.transformer.h[0].attn.num_heads,
+            )
+        else:
+            attentionermanger = LlamaAttentionerManager(
+                model.model,
+                4,  # 4 class
+                predictor=predictor,
+                device=model.device,
+                kind_of_attention_adapter_initilizer=initialize_adapter,
+                n_head=model_original.model.layers[0].self_attn.num_heads,
+            )
+        # params = attentionermanger.params()
         # optimizer = Adam(params, lr=1e-3)  # args.lr)
 
         set_seed(seed)
@@ -108,11 +123,11 @@ def train(args: ReweightingArgs):
                 f"Accuracy: {(dataset['label'] == y[0][0].argmax(axis=1)).sum()/ len(dataset['label'])}"
             )
 
-        y = trainer.predict(test_dataset, ignore_keys=["results"])
-        print_perf(test_dataset, y)
-        quit()
-        for _ in attentionermanger.attention_adapters:
-            _.use_flag = False
+        # y = trainer.predict(test_dataset, ignore_keys=["results"])
+        # print_perf(test_dataset, y)
+        # quit()
+        # for _ in attentionermanger.attention_adapters:
+        #     _.use_flag = False
         for _ in tqdm(range(args.epoch_num)):
             loss_item = 0.0
             train_dataset = train_dataset.shuffle()
