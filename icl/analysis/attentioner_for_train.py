@@ -1,3 +1,4 @@
+import math
 import warnings
 from typing import Callable, Optional, List, Union
 from functools import wraps, partial
@@ -27,7 +28,28 @@ class AttentionAdapterBase(nn.Module):
     def register_input_ids(self, input_ids: torch.Tensor):
         self.input_ids = input_ids
 
+def llama_attn(self, query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None) -> torch.Tensor:
+    # Copy paste from https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    L, S = query.size(-2), key.size(-2)
+    scale_factor = 1 / math.sqrt(query.size(-1)) if scale is None else scale
+    attn_bias = torch.zeros(L, S, dtype=query.dtype)
+    if is_causal:
+        assert attn_mask is None
+        temp_mask = torch.ones(L, S, dtype=torch.bool).tril(diagonal=0)
+        attn_bias.masked_fill_(temp_mask.logical_not(), float("-inf"))
+        attn_bias.to(query.dtype)
 
+    if attn_mask is not None:
+        if attn_mask.dtype == torch.bool:
+            attn_bias.masked_fill_(attn_mask.logical_not(), float("-inf"))
+        else:
+            attn_bias += attn_mask
+    attn_weight = query @ key.transpose(-2, -1) * scale_factor
+    attn_weight += attn_bias
+    attn_weight = torch.softmax(attn_weight, dim=-1)
+    attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
+    return attn_weight @ value
+        
 def gpt2_attn(self, query, key, value, attention_mask=None, head_mask=None, attention_adapter=None):
     attn_weights = torch.matmul(query, key.transpose(-1, -2))
 
@@ -63,8 +85,8 @@ def gpt2_attn(self, query, key, value, attention_mask=None, head_mask=None, atte
 
 
 class AttentionerManagerBase:
-    def __init__(self, model: PreTrainedModel, predictor: Predictor, n_demo, device,n_head):
-        self.n_class = n_demo
+    def __init__(self, model: PreTrainedModel, predictor: Predictor, n_class, device,n_head):
+        self.n_class = n_class
         self.n_head = n_head
         self.device = device
         self.model = model
@@ -134,13 +156,26 @@ def manager_decoractor(manager: AttentionerManagerBase):
     return model_forward_decorator
 
 
+class LlamaAttentionerManager(AttentionerManagerBase):
+    def __init__(self, model: PreTrainedModel, n_class, predictor: Predictor, device, n_head=1):
+        super().__init__(model, predictor, n_class, device,n_head=n_head)
+
+    def register_attentioner_to_model(self):
+        attention_adapters = []
+        for _, layer in enumerate(self.model.model.layers):
+            attention_adapter = AttentionAdapter(n_class=self.n_class, device=self.device,
+                                                 n_head=self.n_head)
+            layer.self_attn._attn = partial(gpt2_attn, layer.self_attn,
+                                       attention_adapter=attention_adapter)
+            attention_adapters.append(attention_adapter)
+        return attention_adapters
 class GPT2AttentionerManager(AttentionerManagerBase):
     def __init__(self, model: PreTrainedModel, n_class, predictor: Predictor, device, n_head=1):
         super().__init__(model, predictor, n_class, device,n_head=n_head)
 
     def register_attentioner_to_model(self):
         attention_adapters = []
-        for i, layer in enumerate(self.model.transformer.h):
+        for _, layer in enumerate(self.model.transformer.h):
             attention_adapter = AttentionAdapter(n_class=self.n_class, device=self.device,
                                                  n_head=self.n_head)
             layer.attn._attn = partial(gpt2_attn, layer.attn,

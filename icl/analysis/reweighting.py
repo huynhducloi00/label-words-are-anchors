@@ -18,10 +18,7 @@ from ..utils.other import (
     sample_two_set_with_shot_per_class,
     dict_to,
 )
-from transformers import (
-    Trainer,
-    TrainingArguments
-)
+from transformers import Trainer, TrainingArguments
 from ..utils.load_local import (
     get_model_layer_num,
 )
@@ -31,7 +28,7 @@ from ..utils.prepare_model_and_tokenizer import (
     get_label_id_dict_for_args,
 )
 from ..util_classes.predictor_classes import Predictor
-from .attentioner_for_train import GPT2AttentionerManager
+from .attentioner_for_train import GPT2AttentionerManager, LlamaAttentionerManager
 from datasets import concatenate_datasets
 from copy import deepcopy
 
@@ -45,11 +42,11 @@ def train(args: ReweightingArgs):
     else:
         raise NotImplementedError(f"sample_from: {args.sample_from}")
 
-    model, tokenizer = load_model_and_tokenizer(args)
+    model_original, tokenizer = load_model_and_tokenizer(args)
     label_id_dict = get_label_id_dict_for_args(args, tokenizer)
 
     model = LMForwardAPI(
-        model=model,
+        model=model_original,
         model_name=args.model_name,
         tokenizer=tokenizer,
         label_id_dict=label_id_dict,
@@ -62,49 +59,10 @@ def train(args: ReweightingArgs):
         per_device_train_batch_size=args.batch_size,
     )
 
-    def prepare_analysis_dataset(seed):
-        demonstration, train_samples = sample_two_set_with_shot_per_class(
-            dataset["train"],
-            args.demonstration_shot,
-            args.train_num_per_class,
-            seed,
-            label_name="label",
-            a_total_shot=args.demonstration_total_shot,
-        )
-        if args.sample_from == "test":
-            if len(dataset["test"]) < args.actual_sample_size:
-                args.actual_sample_size = len(dataset["test"])
-                # warnings.warn(
-                #     f"sample_size: {args.sample_size} is larger than test set size: {len(dataset['test'])},"
-                #     f"actual_sample_size is {args.actual_sample_size}"
-                # )
-            test_sample = (
-                dataset["test"]
-                .shuffle(seed=seed)
-                .select(range(args.actual_sample_size))
-            )
-            analysis_dataset = wrap_dataset(
-                test_sample, demonstration, args.label_dict, args.task_name
-            )
-            analysis_dataset = tokenize_dataset(analysis_dataset, tokenizer)
-
-            train_dataset = wrap_dataset(
-                train_samples, demonstration, args.label_dict, args.task_name
-            )
-            train_dataset = tokenize_dataset(train_dataset, tokenizer)
-        else:
-            raise NotImplementedError(f"sample_from: {args.sample_from}")
-
-        return analysis_dataset, train_dataset, demonstration
-
     ys = []
     for seed in args.seeds:
-        test_dataset = prepare_dataset(
-            seed, dataset['test'],-1, args, tokenizer
-        )
-        train_dataset = test_dataset = prepare_dataset(
-            seed, dataset['train'],100, args, tokenizer
-        )
+        test_dataset = prepare_dataset(seed, dataset["test"], -1, args, tokenizer)
+        train_dataset = prepare_dataset(seed, dataset["train"], 100, args, tokenizer)
 
         training_args = TrainingArguments(
             "./output_dir",
@@ -116,32 +74,42 @@ def train(args: ReweightingArgs):
 
         num_layer = get_model_layer_num(model=model.model, model_name=args.model_name)
         predictor = Predictor(
-            label_id_dict=args.label_id_dict,
+            label_id_dict=label_id_dict,
             pad_token_id=tokenizer.pad_token_id,
             task_name=args.task_name,
             tokenizer=tokenizer,
             layer=num_layer,
         )
-        
-        attentionermanger = GPT2AttentionerManager(
-            model.model,
-            len(demonstration),
-            predictor=predictor,
-            device=model.device,
-            n_head=args.n_head,
-        )
-        
+        if "gpt" in args.model_name:
+            attentionermanger = GPT2AttentionerManager(
+                model.model,
+                4,  # 4 class
+                predictor=predictor,
+                device=model.device,
+                n_head=model_original.transformer.h[0].attn.num_heads,
+            )
+        else:
+            attentionermanger = LlamaAttentionerManager(
+                model.model,
+                4,  # 4 class
+                predictor=predictor,
+                device=model.device,
+                n_head=model_original.model.layers[0].self_attn.num_heads,
+            )
+
         params = attentionermanger.params()
         optimizer = Adam(params, lr=args.lr)
 
         set_seed(seed)
         loss_list = []
-        pbar = tqdm(range(args.epoch_num))
-        for epoch in pbar:
+        for _ in tqdm(range(args.epoch_num)):
             loss_item = 0.0
             train_dataset = train_dataset.shuffle()
             train_dataloader = trainer.get_eval_dataloader(train_dataset)
-            for idx, data in enumerate(train_dataloader):
+            pbar = tqdm(
+                enumerate(train_dataloader), total=len(train_dataset), leave=False
+            )
+            for idx, data in pbar:
                 data = dict_to(data, model.device)
                 output = model(**data)
                 label = data["labels"]
@@ -150,17 +118,17 @@ def train(args: ReweightingArgs):
                 optimizer.step()
                 optimizer.zero_grad()
                 loss_item += loss.item()
-            loss_list.append(loss_item / idx)
-            average_loss = float(loss_item / idx)
-            pbar.set_postfix_str(f"{average_loss}/{epoch}:.2f")
+                loss_list.append(loss_item / idx)
+                average_loss = average_loss * 0.9 + loss.item() * 0.1
+                pbar.set_postfix_str(f"Loss: {average_loss:.2f}")
 
-        y = trainer.predict(analysis_dataset, ignore_keys=["results"])
+        y = trainer.predict(test_dataset, ignore_keys=["results"])
 
-        for _ in attentionermanger.attention_adapters:
-            _.use_flag = False
-        y2 = trainer.predict(analysis_dataset, ignore_keys=["results"])
+        # for _ in attentionermanger.attention_adapters:
+        #     _.use_flag = False
+        # y2 = trainer.predict(test_dataset, ignore_keys=["results"])
 
-        ys.append((y, loss_list, params, y2, average_loss))
+        # ys.append((y, loss_list, params, y2, average_loss))
 
     os.makedirs(os.path.dirname(args.save_file_name), exist_ok=True)
     with open(args.save_file_name, "wb") as f:

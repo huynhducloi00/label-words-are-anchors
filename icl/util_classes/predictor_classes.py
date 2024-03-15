@@ -1,5 +1,6 @@
 import warnings
 
+import numpy as np
 import torch
 
 
@@ -52,17 +53,23 @@ class Predictor:
         device = inputs["input_ids"].device
         bsz, sql = inputs["input_ids"].shape
         class_poss = []
-        for class_idx in label_id_dict.values():
-            input_ids = inputs["input_ids"].detach().clone()[0]
-            case0 = input_ids == class_idx[0]
-            case1 = input_ids == class_idx[1]
-            final_case = 0 if case0.sum() > 0 else 1
-            if self.task_name == "obqa":
-                found = [
-                    k1
-                    for k1, k2 in enumerate(input_ids[:-1])
-                    if k2 == class_idx[final_case] and input_ids[k1 + 1] == 29889
+        def look_for(input_array, prefix):
+            return [k1
+                    for k1, k2 in enumerate(input_array[:-1])
+                    if k2 == prefix[0] and input_ids[k1 + 1] == prefix[1]
                 ]
+        29889
+        input_ids = inputs["input_ids"].detach().clone()[0]
+        label_matrix=np.array(list(label_id_dict.values()))
+        final_case=None
+        dot=self.tokenizer.convert_tokens_to_ids('.')
+        for ix, cat in enumerate(label_matrix[0,:]):
+            if len(look_for(input_ids, [cat,dot]))>0:
+                final_case=ix
+                break
+        for class_idx in label_id_dict.values():
+            if self.task_name == "obqa":
+                found = look_for(input_ids, [class_idx[final_case],dot])
                 class_pos = torch.tensor(found[0])
             else:
                 for offset, prefix_idx in enumerate(reversed(self.prefix_idxs)):

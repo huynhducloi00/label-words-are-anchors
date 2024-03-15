@@ -78,6 +78,7 @@ class DeepArgs:
 @dataclass
 class ReweightingArgs(DeepArgs):
     save_folder: str = os.path.join(FOLDER_ROOT, "results", "reweighting")
+    model_name: str='gpt2-xl'
     lr: float = 0.1
     train_num_per_class: int = 4
     epoch_num: int = 2
@@ -87,8 +88,7 @@ class ReweightingArgs(DeepArgs):
         super(ReweightingArgs, self).__post_init__()
         save_folder = os.path.join(
             self.save_folder,
-            f"lr_{self.lr}_train_num_{self.train_num_per_class}_epoch_{self.epoch_num}"
-            f"_nhead_{self.n_head}",
+            f"lr_{self.lr}_train_num_{self.train_num_per_class}_epoch_{self.epoch_num}",
         )
         self.save_folder = save_folder
 

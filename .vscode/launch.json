@@ -42,7 +42,8 @@
             "type": "debugpy",
             "justMyCode": false,
             "env": {
-                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2",
+                "TF_ENABLE_ONEDNN_OPTS":"0",
             },
             "request": "launch",
             "program": "reweighting.py", //"attention_attr.py",
