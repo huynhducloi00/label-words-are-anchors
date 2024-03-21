@@ -26,11 +26,11 @@ from ..utils.load_local import (
 )
 from ..util_classes.arg_classes import DeepArgs
 from ..utils.prepare_model_and_tokenizer import (
-    load_model_and_tokenizer,
+    load_model_customize,
     get_label_id_dict_for_args,
+    load_tokenizer,
 )
 from ..util_classes.predictor_classes import Predictor
-
 
 def deep_layer(args: DeepArgs):
     # if os.path.exists(args.save_file_name):
@@ -40,8 +40,8 @@ def deep_layer(args: DeepArgs):
         dataset = load_huggingface_dataset_train_and_test(args.task_name)
     else:
         raise NotImplementedError(f"sample_from: {args.sample_from}")
-
-    model, tokenizer = load_model_and_tokenizer(args)
+    tokenizer=load_tokenizer(args)
+    model = load_model_customize(args)
     label_id_dict = get_label_id_dict_for_args(args, tokenizer)
     model = LMForwardAPI(
         model=model,
@@ -69,7 +69,7 @@ def deep_layer(args: DeepArgs):
     ys = []
     no_demo_ys = []
     for seed in tqdm.tqdm(args.seeds):
-        test_dataset = prepare_dataset(seed, dataset["test"], -1, args, tokenizer)
+        test_dataset = prepare_dataset(seed, dataset["test"], 1, args, tokenizer)
 
         model.results_args = {"output_hidden_states": True, "output_attentions": True}
         model.probs_from_results_fn = predictor.cal_all_sim_attn
@@ -79,6 +79,7 @@ def deep_layer(args: DeepArgs):
         print(
             f"Accuracy: {(test_dataset['label'] == y[0][0].argmax(axis=1)).sum()/ len(test_dataset['label'])}"
         )
+        # We will focus on item 2: probs_from_results, which is the attentions value of 4 choices
         ys.append(y)
 
         # model.results_args = {}

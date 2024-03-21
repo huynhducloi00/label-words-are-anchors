@@ -9,18 +9,18 @@ from icl.utils.other import dict_to
 
 
 class LMForwardAPI(nn.Module):
-    def __init__(self, model, model_name, tokenizer, label_id_dict: Dict[int, str]):
+    def __init__(self, model, model_name, tokenizer, label_id_dict: Dict[int, str], output_attention=False):
         super().__init__()
         self._use_past_key_values = False
         self._past_key_values = None
         self.model = model
         self.model_name = model_name
         self.tokenizer = tokenizer
-        self.model.eval()
+        # self.model.eval()
         self.calibration_probs = None
         self.use_calibration_probs = False
         self.probs_from_results_fn = None
-        self.results_args: dict = {}
+        self.results_args: dict = {'output_attentions':output_attention}
         self.label_id_dict = label_id_dict
         self.position_offset = 0
 
@@ -29,7 +29,7 @@ class LMForwardAPI(nn.Module):
         return self.model.device
 
     def cal_logits(self, inputs, **kwargs):
-        self.model.eval()
+        # self.model.eval()
         inputs = dict_to(inputs, self.device)
 
         if self.use_past_key_values:
@@ -66,16 +66,18 @@ class LMForwardAPI(nn.Module):
 
     def _cal_probs(self, logits):
         interest_indices = np.array(list(self.label_id_dict.values()))
-        token_selected=logits.argmax().item()
-        category=None
-        found=[i for i in range(interest_indices.shape[-1]) if token_selected in interest_indices[:,i]]
-        if len(found)>0:
-            category=found[0]
-        else:
-            print('Not in any category')
-            category=0
-        logits = logits[:, interest_indices[:,category]]
+        # token_selected=logits.argmax().item()
+        category = 1  # None
+        # found=[i for i in range(interest_indices.shape[-1]) if token_selected in interest_indices[:,i]]
+        # if len(found)>0:
+        #     category=found[0]
+        # else:
+        #     print('Not in any category')
+        #     category=1
+        # logits = logits[:, interest_indices[:,category]]
         probs = F.softmax(logits, dim=-1)
+        probs = probs[:, interest_indices[:, category]]
+        logits = logits[:, interest_indices[:, category]]
         if self.use_calibration_probs:
             assert self.calibration_probs is not None
             probs = probs / self.calibration_probs
@@ -169,6 +171,8 @@ class LMForwardAPI(nn.Module):
         result = {"probs": probs, "logits": logits, "results": results}
         if self.probs_from_results_fn:
             probs_from_results = self.cal_probs_from_results(kwargs, results)
+            # This is actually the attention weight for class position.
+            # Calling it Probs is very misleading. it is not probs, it is weight.
             # the way 'probs_from_results' structure is [1,96]=stacking the positive (48 values for 48 layers) and negative labels into 96
             result["probs_from_results"] = probs_from_results
         result["ori_logits"] = ori_logits

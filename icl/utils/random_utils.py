@@ -1,3 +1,4 @@
+from enum import Enum
 import numpy as np
 import random, os
 import torch.backends.cudnn

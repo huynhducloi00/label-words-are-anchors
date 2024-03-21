@@ -50,6 +50,8 @@ class Predictor:
         label_id_dict = self.label_id_dict
         pad_token_id = self.pad_token_id
         final_pos = (inputs["input_ids"] != pad_token_id).int().sum(-1) - 1
+        answer_token=self.tokenizer.encode('Answer')[-1] # self.tokenizer.convert_tokens_to_ids('Answer')
+        answer_pos=torch.argwhere(inputs['input_ids'][0]==answer_token)[0][0]
         device = inputs["input_ids"].device
         bsz, sql = inputs["input_ids"].shape
         class_poss = []
@@ -61,7 +63,7 @@ class Predictor:
         input_ids = inputs["input_ids"].detach().clone()[0]
         label_matrix=np.array(list(label_id_dict.values()))
         final_case=None
-        dot=self.tokenizer.convert_tokens_to_ids('.')
+        dot=self.tokenizer.convert_tokens_to_ids(';')
         for ix, cat in enumerate(label_matrix[0,:]):
             if len(look_for(input_ids, [cat,dot]))>0:
                 final_case=ix
@@ -84,7 +86,7 @@ class Predictor:
                 )
             # this guarantees that the class_pos is from Positive--> Negative but not the other way around.
             class_poss.append(class_pos)
-        return class_poss, final_pos
+        return class_poss, final_pos, answer_pos
 
     def _cal_all_key_and_values_of_class(
         self, inputs, past_key_values, one_class_one_list=False, include_final=False

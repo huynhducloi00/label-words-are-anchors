@@ -5,6 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "thu_long",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "program": "thu_long.py", //".py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "attr",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "program": "attention_attr.py", //".py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "do_shallow_layer",
             "type": "debugpy",
             "justMyCode": false,
@@ -43,10 +65,22 @@
             "justMyCode": false,
             "env": {
                 "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2",
-                "TF_ENABLE_ONEDNN_OPTS":"0",
+                "TF_ENABLE_ONEDNN_OPTS": "0",
             },
             "request": "launch",
             "program": "reweighting_entry.py", //"attention_attr.py",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "test_llama",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2",
+                "TF_ENABLE_ONEDNN_OPTS": "0",
+            },
+            "request": "launch",
+            "program": "testing_llama/fine_tuning_llama_2.py", //"attention_attr.py",
             "console": "integratedTerminal"
         }
     ]

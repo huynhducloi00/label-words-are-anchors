@@ -20,7 +20,7 @@ from transformers import Trainer, TrainingArguments, PreTrainedModel, AutoModelF
     AutoTokenizer, DataCollatorWithPadding
 from ..utils.load_local import get_model_layer_num
 from ..util_classes.arg_classes import CompressTimeArgs
-from ..utils.prepare_model_and_tokenizer import load_model_and_tokenizer, get_label_id_dict_for_args
+from ..utils.prepare_model_and_tokenizer import load_model_customize, get_label_id_dict_for_args
 
 def clip_sample(sample,tokenizer):
     input_ids = torch.tensor(sample['input_ids'])
@@ -63,7 +63,7 @@ def compress_time(args: CompressTimeArgs):
     else:
         raise NotImplementedError(f"sample_from: {args.sample_from}")
 
-    model, tokenizer = load_model_and_tokenizer(args)
+    model, tokenizer = load_model_customize(args)
     args.label_id_dict = get_label_id_dict_for_args(args, tokenizer)
 
     model = LMForwardAPI(model=model, model_name=args.model_name, tokenizer=tokenizer,

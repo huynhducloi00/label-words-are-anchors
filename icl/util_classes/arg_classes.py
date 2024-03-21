@@ -14,10 +14,11 @@ def set_default_to_empty_string(v, default_v, activate_flag):
     else:
         return f"_{v}"
 
+
 @dataclass
 class DeepArgs:
     task_name: str = "obqa"
-    model_name: str =  "lmsys/vicuna-13b-v1.5" #"gpt2-xl"#
+    model_name: str = "lmsys/vicuna-13b-v1.5"  # "gpt2-xl"#
     seeds: List[int] = field(default_factory=lambda: [42])
     sample_size: int = 1000
     demonstration_shot: int = 0
@@ -25,6 +26,7 @@ class DeepArgs:
     demonstration_total_shot: int = None
     sample_from: str = "test"
     device: str = "cuda:0"
+    version: str = "a"
     batch_size: int = 1
     save_folder: str = os.path.join(FOLDER_ROOT, "results", "deep")
     using_old: bool = False
@@ -33,7 +35,7 @@ class DeepArgs:
     def save_file_name(self):
         file_name = (
             f"{self.task_name}_{self.model_name}_{self.demonstration_shot}_{self.demonstration_from}"
-            f"_{self.sample_from}_{self.sample_size}_{'_'.join([str(seed) for seed in self.seeds])}"
+            f"_{self.sample_from}_{self.sample_size}_{'_'.join([str(seed) for seed in self.seeds])}_{self.version}"
         )
         file_name += set_default_to_empty_string(
             self.demonstration_total_shot, None, self.using_old
@@ -73,13 +75,14 @@ class DeepArgs:
         with open(self.save_file_name, "rb") as f:
             return pickle.load(f)
 
+
 @dataclass
 class ReweightingArgs(DeepArgs):
     save_folder: str = os.path.join(FOLDER_ROOT, "results", "reweighting")
     # model_name: str='gpt2-xl'
     lr: float = 0.1
     train_num_per_class: int = 4
-    epoch_num: int = 2
+    epoch_num: int = 1
     seeds: List[int] = field(default_factory=lambda: [42])
 
     def __post_init__(self):
@@ -110,6 +113,7 @@ class CompressTimeArgs(DeepArgs):
 @dataclass
 class AttrArgs(DeepArgs):
     save_folder: str = os.path.join(FOLDER_ROOT, "results", "attr")
+    version: str= "original"
 
 
 @dataclass

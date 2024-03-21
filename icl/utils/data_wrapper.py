@@ -8,20 +8,38 @@ format_s_dict = {
 }
 
 
-def prepare_dataset(seed, dataset, sample_size, args, tokenizer):
-    sample = dataset.shuffle(seed=seed)
+def prepare_dataset(seed, dataset, sample_size, args, tokenizer, sen_gen):
+    sampled_dataset = dataset.shuffle(seed=seed)
     if sample_size != -1:
-        sample = sample.select(range(sample_size))
+        sampled_dataset = sampled_dataset.select(range(sample_size))
 
-    analysis_dataset = wrap_dataset(sample, [], args.label_dict, args.task_name)
-    analysis_dataset = tokenize_dataset(analysis_dataset, tokenizer)
-    return analysis_dataset
+    if args.task_name == "obqa":
+        sampled_dataset = sampled_dataset.add_column(
+            "label",
+            [["A", "B", "C", "D"].index(x) for x in sampled_dataset["answerKey"]],
+        )
+
+    def wrap(row):
+        row["sentence"] = sen_gen(row)
+        row["labels"] = row["label"]
+        return row
+
+    sampled_dataset = sampled_dataset.map(
+        wrap,
+        load_from_cache_file=False,
+    )
+    if args.task_name == "obqa":
+        sampled_dataset = sampled_dataset.remove_columns("choices")
+
+    sampled_dataset = tokenize_dataset(sampled_dataset, tokenizer)
+    return sampled_dataset
 
 
 def obqa_wrap_data(input_sample):
     choices = input_sample["choices"]["text"]
     # for vicinity
-    inputs = f"Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\nAnswer:"
+    inputs = f"Question: {input_sample['question_stem']} A. {choices[0]} B. {choices[1]} C. {choices[2]} D. {choices[3]} Answer:"
+    # inputs = f"Question: {input_sample['question_stem']}:\n'{choices[0]}' is A.\n'{choices[1]}' is B.\n'{choices[2]}' is C.\n'{choices[3]}' is D.\nAnswer:"
     # inputs = f"Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\nAnswer:"
     # 27.6 inputs = f"Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\nSelect either A, B, C, or D:"
     # 27.6 inputs = f"Question: 1+1=\n A. 0 B. 1 C. 2 D. 3. Answer: C. Question: {input_sample['question_stem']}\n A. {choices[0]}\n B. {choices[1]}\n C. {choices[2]}\n D. {choices[3]}\n Answer:"
@@ -103,31 +121,6 @@ def instruct_wrapper(instruct: str, input_sample, label_dict, task_name):
     return inputs
 
 
-def wrap(example, demonstration, label_dict, task_name):
-    example["sentence"] = wrap_data(
-        demonstrations=demonstration,
-        input_sample=example,
-        label_dict=label_dict,
-        task_name=task_name,
-    )
-    example["labels"] = example["label"]
-    return example
-
-
-def wrap_dataset(
-    dataset: datasets.arrow_dataset.Dataset, demonstration, label_dict, task_name
-):
-    if task_name == "obqa":
-        dataset = dataset.add_column(
-            "label",
-            [["A", "B", "C", "D"].index(x) for x in dataset["answerKey"]],
-        )
-    dataset = dataset.map(lambda x: wrap(x, demonstration, label_dict, task_name))
-    if task_name == "obqa":
-        dataset = dataset.remove_columns("choices")
-    return dataset
-
-
 def wrap_dataset_with_instruct(
     dataset: datasets.arrow_dataset.Dataset, instruct, label_dict, task_name
 ):
@@ -166,7 +159,7 @@ def get_max_length(tokenizer):
     return max_length
 
 
-def tokenize_dataset(dataset, tokenizer):
+def tokenize_dataset(dataset: datasets.arrow_dataset.Dataset, tokenizer):
     def tokenize_function(examples):
         return tokenizer(
             examples["sentence"],
@@ -176,7 +169,9 @@ def tokenize_dataset(dataset, tokenizer):
             return_tensors="pt",
         )
 
-    tokenized_datasets = dataset.map(tokenize_function, batched=True)
+    tokenized_datasets = dataset.map(
+        tokenize_function, batched=True, load_from_cache_file=False
+    )
     return tokenized_datasets
 
 

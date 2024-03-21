@@ -16,7 +16,7 @@ from transformers import Trainer, TrainingArguments, PreTrainedModel, AutoModelF
     AutoTokenizer
 from ..utils.load_local import convert_path_old, load_local_model_or_tokenizer, get_model_layer_num
 from ..util_classes.arg_classes import NClassificationArgs
-from ..utils.prepare_model_and_tokenizer import load_model_and_tokenizer, get_label_id_dict_for_args
+from ..utils.prepare_model_and_tokenizer import load_model_customize, get_label_id_dict_for_args
 from ..util_classes.predictor_classes import Predictor
 
 
@@ -30,7 +30,7 @@ def n_classify(args: NClassificationArgs):
     else:
         raise NotImplementedError(f"sample_from: {args.sample_from}")
 
-    model, tokenizer = load_model_and_tokenizer(args)
+    model, tokenizer = load_model_customize(args)
     args.label_id_dict = get_label_id_dict_for_args(args, tokenizer)
 
     model = LMForwardAPI(model=model, model_name=args.model_name, tokenizer=tokenizer,
