@@ -13,7 +13,7 @@ from random_utils import set_seed
 import pandas as pd
 
 # %%
-model_name = "google-t5/t5-large"
+model_name = "google-t5/t5-3b"
 # model_name = (
 #     "allenai/unifiedqa-v2-t5-large-1363200"  # you can specify the model size here
 # )
