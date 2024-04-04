@@ -50,7 +50,7 @@
                 "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
             },
             "request": "launch",
-            "cwd": "/home/ldh0033@auburn.edu/learning_nlp/SocialSense/testing/llm_unlearn_loi_version/label-words-are-anchors/verify_unifiedqa",
+            "cwd": "${workspaceFolder}/verify_unifiedqa",
             "program": "0_vanilla.py", //"attention_attr.py",
             "console": "integratedTerminal"
         },
