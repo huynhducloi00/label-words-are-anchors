@@ -52,9 +52,14 @@ def DEFAULT_COMPUTE_BIAS(self, query_length, key_length, device=None):
 # %%
 import pickle
 
-dataset_test = pickle.load(open("test_without_abcd.pkl", "rb"))
-dataset_train = pickle.load(open("train_without_abcd.pkl", "rb"))
 
+DATABASE_NAME = "obqa_fact"
+dataset_test = pickle.load(
+    open(f"multiple_choice_datasets/{DATABASE_NAME}_test.pkl", "rb")
+)
+dataset_train = pickle.load(
+    open(f"multiple_choice_datasets/{DATABASE_NAME}_test.pkl", "rb")
+)
 # %%
 MODE = "new"  #'old'
 
@@ -222,9 +227,9 @@ def set_mode(MODE):
 
 print(textwrap.fill(dataset_train[0][0]))
 set_mode("old")
-print("old ", run_tokens(check(dataset_train[0][0]).to(DEVICE)))
+# print("old ", run_tokens(check(dataset_train[0][0]).to(DEVICE)))
 set_mode("new")
-print("new ", run_tokens(check(dataset_train[0][0]).to(DEVICE)))
+# print("new ", run_tokens(check(dataset_train[0][0]).to(DEVICE)))
 
 # %%
 kk = [(index, x, y) for index, (x, y) in enumerate(model.named_parameters())
