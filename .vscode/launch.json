@@ -51,7 +51,7 @@
             },
             "request": "launch",
             "cwd": "/home/ldh0033@auburn.edu/learning_nlp/SocialSense/testing/llm_unlearn_loi_version/label-words-are-anchors/verify_unifiedqa",
-            "program": "testing.py", //"attention_attr.py",
+            "program": "0_vanilla.py", //"attention_attr.py",
             "console": "integratedTerminal"
         },
         {
