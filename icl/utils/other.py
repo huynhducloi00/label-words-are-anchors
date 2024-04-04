@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from transformers import HfArgumentParser
 import os
-from .random_utils import np_temp_random
+from ...random_utils import np_temp_random
 
 REDUCE_FN_MAPPINGS = {
     'sum': torch.sum,

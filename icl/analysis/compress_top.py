@@ -17,7 +17,7 @@ from ..util_classes.predictor_classes import Predictor
 from ..utils.data_wrapper import wrap_dataset, tokenize_dataset, wrap_dataset_with_instruct, \
     remove_str_columns
 from ..utils.load_huggingface_dataset import load_huggingface_dataset_train_and_test
-from ..utils.random_utils import set_seed
+from ...random_utils import set_seed
 from ..utils.other import load_args, set_gpu, sample_two_set_with_shot_per_class
 from transformers import Trainer, TrainingArguments, PreTrainedModel, AutoModelForCausalLM, \
     AutoTokenizer, DataCollatorWithPadding

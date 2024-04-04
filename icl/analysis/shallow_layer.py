@@ -12,7 +12,7 @@ from ..lm_apis.lm_api_base import LMForwardAPI
 from ..utils.data_wrapper import wrap_dataset, tokenize_dataset
 from ..utils.load_huggingface_dataset import load_huggingface_dataset_train_and_test
 from ..utils.prepare_model_and_tokenizer import load_model_customize, get_label_id_dict_for_args
-from ..utils.random_utils import set_seed
+from ...random_utils import set_seed
 from ..utils.other import load_args, set_gpu, sample_two_set_with_shot_per_class
 from transformers import Trainer, TrainingArguments, PreTrainedModel, AutoModelForCausalLM, \
     AutoTokenizer

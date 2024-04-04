@@ -282,7 +282,7 @@ all_labels = [a_label, b_label, c_label, d_label]
 
 # %%
 from icl.analysis.attentioner_for_train import MeasureGradOnlyAttentionAdapter
-from icl.utils.random_utils import set_seed
+from random_utils import set_seed
 from torch.optim import Adam, SGD
 from tqdm import trange
 

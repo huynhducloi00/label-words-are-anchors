@@ -9,33 +9,6 @@ from torch.nn import functional as F
 from transformers import PreTrainedModel
 from transformers.models.gpt2.modeling_gpt2 import GPT2Attention
 
-from icl.util_classes.predictor_classes import Predictor
-
-
-class Mode(Enum):
-    NONE = 0
-    NEGLECTING = 1
-    NEGLECTING_AND_OBSERVING = 2  # obersving the grad on attn
-    REWEIGHTING = 3
-    CUSTOM_PATH_ONLY = 4
-    MEASURE_GRAD_ONLY = 5
-
-
-def get_attn_adapter_initializer(mode):
-    if mode == Mode.NONE:
-        return None
-    if mode == Mode.CUSTOM_PATH_ONLY:
-        initialize_adapter = CustomPathOnlyAttentionAdapter
-    elif mode == Mode.MEASURE_GRAD_ONLY:
-        initialize_adapter = MeasureGradOnlyAttentionAdapter
-    elif mode == Mode.NEGLECTING:
-        initialize_adapter = AlteringAttentionAdapter
-    elif mode == Mode.NEGLECTING_AND_OBSERVING:
-        initialize_adapter = AlteringAndObservingAttentionAdapter
-    else:
-        initialize_adapter = ReweightingAttentionAdapter
-    return initialize_adapter
-
 
 class AttentionAdapterBase(nn.Module):
     def __init__(self, *args, **kwargs):
@@ -103,50 +76,10 @@ def llama_attn(
     attn_weight = torch.dropout(attn_weight, dropout_p, train=True)
     return attn_weight @ value, attn_weight
 
-
-def gpt2_attn(
-    self, query, key, value, attention_mask=None, head_mask=None, attention_adapter=None
-):
-    attn_weights = torch.matmul(query, key.transpose(-1, -2))
-
-    if self.scale_attn_weights:
-        attn_weights = attn_weights / (float(value.size(-1)) ** 0.5)
-
-    if self.scale_attn_by_inverse_layer_idx:
-        attn_weights = attn_weights / float(self.layer_idx + 1)
-
-    if not self.is_cross_attention:
-        query_length, key_length = query.size(-2), key.size(-2)
-        causal_mask = self.bias[
-            :, :, key_length - query_length : key_length, :key_length
-        ].bool()
-        attn_weights = torch.where(
-            causal_mask, attn_weights, self.masked_bias.to(attn_weights.dtype)
-        )
-
-    if attention_mask is not None:
-        attn_weights = attn_weights + attention_mask
-
-    attn_weights = nn.Softmax(dim=-1)(attn_weights)
-
-    if attention_adapter is not None:
-        attn_weights = attention_adapter(attn_weights)
-
-    attn_weights = attn_weights.type(value.dtype)
-    attn_weights = self.attn_dropout(attn_weights)
-
-    if head_mask is not None:
-        attn_weights = attn_weights * head_mask
-
-    attn_output = torch.matmul(attn_weights, value)
-
-    return attn_output, attn_weights
-
-
 # Basic grad for all
 class AttentionerManagerBase:
     def __init__(
-        self, model: PreTrainedModel, predictor: Predictor, n_class, device, n_head
+        self, model: PreTrainedModel, n_class, device, n_head
     ):
         self.n_class = n_class
         self.n_head = n_head
@@ -267,70 +200,6 @@ def change_attn(self, attn_weights):
     return new_attn
 
 
-class CustomPathOnlyAttentionAdapter(AttentionAdapterBase):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
-
-    def _forward(self, attn_weights):
-        return attn_weights
-
-
-class MeasureGradOnlyAttentionAdapter(CustomPathOnlyAttentionAdapter):
-    def _forward(self, attn_weights):
-        if self.params is None:
-            self.params = torch.ones_like(attn_weights, requires_grad=True)
-        else:
-            self.params.data = torch.ones_like(attn_weights)
-        return attn_weights * self.params
-
-
-class AlteringAttentionAdapter(CustomPathOnlyAttentionAdapter):
-    def _forward(self, attn_weights):
-        return change_attn(self, attn_weights)
-
-
-class AlteringAndObservingAttentionAdapter(CustomPathOnlyAttentionAdapter):
-
-    # def _forward(self, attn_weights):
-    #     class_poss = self.class_poss
-    #     ablation_matrix = torch.ones_like(attn_weights)
-    #     for head in range(attn_weights.shape[1]):
-    #         for i in range(len(class_poss) - 1):
-    #             for j in range(i + 1, len(class_poss)):
-    #                 range_i_start = class_poss[i]
-    #                 range_i_end = class_poss[i + 1]
-    #                 range_j_start = class_poss[j]
-    #                 range_j_end = (
-    #                     class_poss[j + 1]
-    #                     if j < len(class_poss) - 1
-    #                     else self.answer_pos
-    #                 )
-    #                 # annil
-    #                 ablation_matrix[0, head][
-    #                     range_j_start:range_j_end, range_i_start:range_i_end
-    #                 ] = 0
-    #         for i in range(len(class_poss)-1):
-    #             range_i_start = class_poss[i]
-    #                 range_i_end = class_poss[i + 1]
-    #                 range_i_end = (
-    #                     class_poss[i + 1]
-    #                     if i < len(class_poss) - 1
-    #                     else self.answer_pos
-    #                 )
-    #                 torch.where(x > 0, x, 0.)
-    #     if self.params is None:
-    #         self.params = torch.ones_like(attn_weights, requires_grad=True)
-    #     else:
-    #         self.params.data = torch.ones_like(attn_weights)
-    #     return attn_weights * ablation_matrix  *self.params
-    def _forward(self, attn_weights):
-        if self.params is None:
-            self.params = torch.ones_like(attn_weights, requires_grad=True)
-        else:
-            self.params.data = torch.ones_like(attn_weights)
-        return change_attn(self, attn_weights) * self.params
-
-
 def manager_decoractor(manager: AttentionerManagerBase):
     def model_forward_decorator(fn):
         @wraps(fn)
@@ -346,37 +215,7 @@ def manager_decoractor(manager: AttentionerManagerBase):
     return model_forward_decorator
 
 
-class LlamaAttentionerManager(AttentionerManagerBase):
-    def __init__(
-        self,
-        model: PreTrainedModel,
-        n_class,
-        predictor: Predictor,
-        device,
-        kind_of_attention_adapter_initilizer,
-        n_head=1,
-    ):
-        self.kind_of_attention_adapter_initilizer = kind_of_attention_adapter_initilizer
-        super().__init__(model, predictor, n_class, device, n_head=n_head)
-
-    def register_attentioner_to_model(self):
-        attention_adapters = []
-        for _, layer in enumerate(self.model.model.layers):
-            attention_adapter = self.kind_of_attention_adapter_initilizer(
-                n_class=self.n_class,
-                device=self.device,
-                n_head=self.n_head,
-                dtype=self.model.model.embed_tokens.weight.dtype
-                # dtype=layer.self_attn.q_proj.quant_storage,
-            )
-            layer.self_attn._attn = partial(
-                llama_attn, layer.self_attn, attention_adapter=attention_adapter
-            )
-            attention_adapters.append(attention_adapter)
-        return attention_adapters
-
-
-class GPT2AttentionerManager(AttentionerManagerBase):
+class T5PositionWeightManager(T5PositionWeightManagerManagerBase):
     def __init__(
         self,
         model: PreTrainedModel,
@@ -395,7 +234,7 @@ class GPT2AttentionerManager(AttentionerManagerBase):
             attention_adapter = self.kind_of_attention_adapter_initilizer(
                 n_class=self.n_class, device=self.device, n_head=self.n_head
             )
-            layer.attn._attn = partial(
+            layer.t5_attention.compute_bias = partial(
                 gpt2_attn, layer.attn, attention_adapter=attention_adapter
             )
             attention_adapters.append(attention_adapter)

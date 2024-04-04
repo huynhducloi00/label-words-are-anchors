@@ -8,10 +8,8 @@ format_s_dict = {
 }
 
 
-def prepare_dataset(seed, dataset, sample_size, args, tokenizer, sen_gen):
-    sampled_dataset = dataset.shuffle(seed=seed)
-    if sample_size != -1:
-        sampled_dataset = sampled_dataset.select(range(sample_size))
+def prepare_dataset(seed, dataset, index_arr, args, tokenizer, sen_gen):
+    sampled_dataset = dataset.shuffle(seed=seed).select(index_arr)
 
     if args.task_name == "obqa":
         sampled_dataset = sampled_dataset.add_column(
@@ -19,17 +17,15 @@ def prepare_dataset(seed, dataset, sample_size, args, tokenizer, sen_gen):
             [["A", "B", "C", "D"].index(x) for x in sampled_dataset["answerKey"]],
         )
 
-    def wrap(row):
-        row["sentence"] = sen_gen(row)
-        row["labels"] = row["label"]
+    def wrap(row, index):
+        row["sentence"], row["perm"], row["labels"] = sen_gen(row, index)
         return row
 
     sampled_dataset = sampled_dataset.map(
-        wrap,
-        load_from_cache_file=False,
+        wrap, load_from_cache_file=False, with_indices=True
     )
     if args.task_name == "obqa":
-        sampled_dataset = sampled_dataset.remove_columns("choices")
+        sampled_dataset = sampled_dataset.remove_columns(["choices",'label'])
 
     sampled_dataset = tokenize_dataset(sampled_dataset, tokenizer)
     return sampled_dataset

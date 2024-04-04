@@ -5,6 +5,56 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "debias_pride",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "cwd": "/home/ldh0033@auburn.edu/learning_nlp/SocialSense/testing/llm_unlearn_loi_version/label-words-are-anchors/LLM-MCQ-Bias/code",
+            "program": "debias_pride.py",//"debias_pride.py",
+            "args": [
+                "--task",
+                "csqa",
+                "--load_paths",
+                "results_csqa/0s_llama-7b/csqa_cyclic",
+                "--debias_fn",
+                "simple"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "eval_clm",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "cwd": "/home/ldh0033@auburn.edu/learning_nlp/SocialSense/testing/llm_unlearn_loi_version/label-words-are-anchors/LLM-MCQ-Bias/code",
+            "program": "eval_clm.py",
+            "args": [
+                "--pretrained_model_path",
+                "~/.cache/huggingface/hub/models--huggyllama--llama-7b/snapshots/8416d3fefb0cb3ff5775a7b13c1692d10ff1aa16/",
+                "--eval_names",
+                "arc,0,cyclic"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "test_unifiedqa",
+            "type": "debugpy",
+            "justMyCode": false,
+            "env": {
+                "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
+            },
+            "request": "launch",
+            "cwd": "/home/ldh0033@auburn.edu/learning_nlp/SocialSense/testing/llm_unlearn_loi_version/label-words-are-anchors/verify_unifiedqa",
+            "program": "testing.py", //"attention_attr.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "thu_long",
             "type": "debugpy",
             "justMyCode": false,

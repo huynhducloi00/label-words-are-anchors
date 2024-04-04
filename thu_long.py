@@ -177,7 +177,7 @@ attentionermanger = LlamaAttentionerManager(
 )
 
 # %%
-from icl.utils.random_utils import set_seed
+from random_utils import set_seed
 
 
 pros = []

@@ -38,7 +38,7 @@ from transformers import Trainer, TrainingArguments
 from datasets import concatenate_datasets
 from copy import deepcopy
 
-from icl.utils.random_utils import set_seed
+from random_utils import set_seed
 
 
 def train(args: AttrArgs):
