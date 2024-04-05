@@ -387,7 +387,7 @@ loi_dataloader = DataLoader(
         data_array,
         CheckTransform(),
     ),
-    batch_size=10,
+    batch_size=5,
     shuffle=True,
     collate_fn=collate,
 )

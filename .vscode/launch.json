@@ -51,7 +51,7 @@
             },
             "request": "launch",
             "cwd": "${workspaceFolder}/verify_unifiedqa",
-            "program": "0_vanilla.py", //"attention_attr.py",
+            "program": "test_1.py", //"attention_attr.py",
             "console": "integratedTerminal"
         },
         {
