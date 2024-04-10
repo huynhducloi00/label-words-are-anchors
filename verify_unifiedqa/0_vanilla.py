@@ -7,7 +7,7 @@ from torch.nn.modules.sparse import Embedding
 from torch.optim import Adam, SGD
 import torch.nn as nn
 
-model_name = "google-t5/t5-3b"
+model_name = "allenai/unifiedqa-v2-t5-3b-1363200"
 # model_name = (
 #     "allenai/unifiedqa-v2-t5-large-1363200"  # you can specify the model size here
 # )
