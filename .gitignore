@@ -8,3 +8,6 @@ test_other_papers/
 *.zip
 .DS_Store
 verify_unifiedqa/multiple_choice_datasets/ARC-DA-v1.1/README.md
+.ipynb_checkpoints/
+*.out
+loi.sh
