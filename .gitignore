@@ -5,7 +5,6 @@ test_other_papers/
 *.pkl
 *_None
 *.jsonl
-*.zip
 .DS_Store
 verify_unifiedqa/multiple_choice_datasets/ARC-DA-v1.1/README.md
 .ipynb_checkpoints/
