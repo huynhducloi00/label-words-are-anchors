@@ -50,8 +50,8 @@
                 "PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT": "2"
             },
             "request": "launch",
-            "cwd": "${workspaceFolder}/verify_unifiedqa",
-            "program": "test_1.py", //"attention_attr.py",
+            "cwd": "${workspaceFolder}/verify_unifiedqa/deepspeed",
+            "program": "aa.py", //"attention_attr.py",
             "console": "integratedTerminal"
         },
         {

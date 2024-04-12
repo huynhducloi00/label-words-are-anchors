@@ -11,3 +11,5 @@ verify_unifiedqa/multiple_choice_datasets/ARC-DA-v1.1/README.md
 *.out
 loi.sh
 ._*
+*.txt
+verify_unifiedqa/deepspeed/kaggle/input/feedback-prize-2021/train.csv
