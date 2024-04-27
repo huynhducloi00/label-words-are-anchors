@@ -1,5 +1,6 @@
 __pycache__/
 test_other_papers/
+*.csv
 *.pdf
 *.png
 *.pkl
